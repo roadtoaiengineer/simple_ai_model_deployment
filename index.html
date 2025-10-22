@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalkulator Zdolności Kredytowej ML</title>
+    <!-- Ładowanie Tailwind CSS dla szybkiego i responsywnego stylowania -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Użycie czcionki Inter dla lepszej estetyki */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fc;
+        }
+        /* Dodatkowe stylowanie dla przycisku, aby był bardziej widoczny */
+        button {
+            transition: all 0.2s;
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md bg-white p-8 rounded-xl shadow-2xl">
+        <h1 class="text-3xl font-extrabold text-gray-800 mb-6 text-center">Kalkulator Zdolności Kredytowej</h1>
+        <p class="text-gray-500 mb-8 text-center">Wprowadź swoje dane, aby sprawdzić predykcję modelu ML.</p>
+
+        <!-- Formularz zbierający dane wejściowe -->
+        <form id="loanForm" class="space-y-6">
+
+            <!-- Pole: Income (Dochód) -->
+            <div>
+                <label for="income" class="block text-sm font-medium text-gray-700">Roczny Dochód (Income)</label>
+                <input type="number" id="income" name="income" required min="0" step="1" 
+                       placeholder="np. 85000"
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 appearance-none">
+            </div>
+
+            <!-- Pole: Credit Score (Wynik Kredytowy) -->
+            <div>
+                <label for="credit_score" class="block text-sm font-medium text-gray-700">Wynik Kredytowy (Credit Score)</label>
+                <input type="number" id="credit_score" name="credit_score" required min="300" max="850" step="1"
+                       placeholder="np. 680"
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 appearance-none">
+            </div>
+
+            <!-- Pole: Loan Amount (Kwota Kredytu) -->
+            <div>
+                <label for="loan_amount" class="block text-sm font-medium text-gray-700">Żądana Kwota Kredytu (Loan Amount)</label>
+                <input type="number" id="loan_amount" name="loan_amount" required min="1000" step="1"
+                       placeholder="np. 35000"
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 appearance-none">
+            </div>
+
+            <!-- Pole: Years Employed (Lata Zatrudnienia) -->
+            <div>
+                <label for="years_employed" class="block text-sm font-medium text-gray-700">Lata Zatrudnienia (Years Employed)</label>
+                <input type="number" id="years_employed" name="years_employed" required min="0" max="50" step="1"
+                       placeholder="np. 10"
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 appearance-none">
+            </div>
+
+            <button type="submit" 
+                    id="submitButton"
+                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <span id="buttonText">Sprawdź Predykcję</span>
+                <svg id="loadingSpinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </button>
+        </form>
+
+        <!-- Sekcja wyników i komunikatów -->
+        <div id="resultSection" class="mt-8 p-4 rounded-lg text-center transition-all duration-300 hidden">
+            <p id="resultText" class="text-lg font-semibold"></p>
+        </div>
+    </div>
+
+    <script>
+        // Adres URL Twojego działającego API
+        const API_URL = "http://127.0.0.1:8000/predict";
+        
+        const form = document.getElementById('loanForm');
+        const resultSection = document.getElementById('resultSection');
+        const resultText = document.getElementById('resultText');
+        const submitButton = document.getElementById('submitButton');
+        const buttonText = document.getElementById('buttonText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+
+        // Funkcja pomocnicza do wyświetlania komunikatów (zamiast alert())
+        function displayMessage(message, isError = false) {
+            resultText.textContent = message;
+            resultSection.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800');
+            
+            if (isError) {
+                resultSection.classList.add('bg-red-100', 'text-red-800');
+            } else {
+                resultSection.classList.add('bg-green-100', 'text-green-800');
+            }
+        }
+
+        // Funkcja do zarządzania stanem ładowania przycisku
+        function setLoading(isLoading) {
+            submitButton.disabled = isLoading;
+            if (isLoading) {
+                buttonText.textContent = "Przewidywanie...";
+                loadingSpinner.classList.remove('hidden');
+            } else {
+                buttonText.textContent = "Sprawdź Predykcję";
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Zatrzymaj domyślne przesyłanie formularza
+            setLoading(true);
+            resultSection.classList.add('hidden');
+
+            // Zbieranie danych z formularza
+            const data = {
+                income: parseInt(document.getElementById('income').value),
+                credit_score: parseInt(document.getElementById('credit_score').value),
+                loan_amount: parseInt(document.getElementById('loan_amount').value),
+                years_employed: parseInt(document.getElementById('years_employed').value)
+            };
+
+            // Sprawdzenie, czy wszystkie wartości to liczby (choć input type="number" to wymusza, to jest to dobra praktyka)
+            if (Object.values(data).some(isNaN)) {
+                 displayMessage("Wszystkie pola muszą być wypełnione poprawnymi liczbami.", true);
+                 setLoading(false);
+                 return;
+            }
+
+            try {
+                // Wysyłanie danych do endpointu FastAPI
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    // Obsługa błędów zwróconych przez FastAPI (np. 400, 503)
+                    const errorDetail = result.detail || `Błąd HTTP: ${response.status}`;
+                    throw new Error(`Błąd predykcji: ${errorDetail}`);
+                }
+
+                // Przetwarzanie wyniku
+                const prediction = result.prediction; 
+
+                if (prediction === 1) {
+                    displayMessage("Model przewiduje: Kredyt ZAAKCEPTOWANY.", false);
+                } else if (prediction === 0) {
+                    displayMessage("Model przewiduje: Kredyt ODRZUCONY.", true);
+                } else {
+                    displayMessage(`Nieznany wynik predykcji: ${prediction}`, true);
+                }
+
+            } catch (error) {
+                console.error("Błąd komunikacji z API:", error);
+                displayMessage(error.message || "Wystąpił błąd komunikacji z serwerem API.", true);
+            } finally {
+                setLoading(false);
+            }
+        });
+    </script>
+</body>
+</html>
